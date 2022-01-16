@@ -1,9 +1,14 @@
 package com.example.weather;
 
+import java.sql.Timestamp;
+import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.logging.log4j.LogManager;
 
 import org.apache.logging.log4j.Logger;
+import org.bson.BsonDateTime;
 import org.bson.BsonDocument;
 import org.bson.BsonTimestamp;
 import org.bson.json.JsonObject;
@@ -28,40 +33,42 @@ public class AppController {
 	@SuppressWarnings("unused")
 	@RequestMapping("home")
 	public ModelAndView home(String city) {
-		System.out.println("Home");
+		logger.info("/home?city=<city_name>");
 		ModelAndView modelAndView = new ModelAndView();
-		if(city != null && !city.isEmpty()) {
-			City city2 = new City();
+		List<City> listOfCitiesInDB = repository.findByName(city);
+		if(city != null && !city.isEmpty() && listOfCitiesInDB.size() == 0) {
+			logger.info("New City Being Added to DB " + city);
+			City city1 = new City();
 			BsonDocument updatedDocument = makeARestCallToOpenWeather(city);
-			city2.setName(city);
-			city2.setDes(updatedDocument.getArray("weather").get(0).asDocument().get("description").asString().getValue().toString());
-			city2.setTime(new BsonTimestamp(System.currentTimeMillis()));
-			city2.setIcon(updatedDocument.getArray("weather").get(0).asDocument().get("description").asString().getValue().toString());
-			city2.setTemp(new Double(updatedDocument.getDocument("main").asDocument().get("temp").asDouble().getValue()).toString());
-			saveCity(city2);
+			city1.setName(city);
+			city1.setDes(updatedDocument.getArray("weather").get(0).asDocument().get("description").asString().getValue().toString());
+			city1.setDate(new Date(System.currentTimeMillis()));
+			city1.setIcon(updatedDocument.getArray("weather").get(0).asDocument().get("icon").asString().getValue().toString());
+			city1.setTemp(String.valueOf(updatedDocument.getDocument("main").asDocument().get("temp").asDouble().getValue()));
+			saveCity(city1);
 		}
 		List<City> listOfCitiesWithDetailsCities = repository.findAll();
 		Long currentTimeMillis = System.currentTimeMillis();
-		BsonTimestamp currentTimestamp = new BsonTimestamp(currentTimeMillis);
-		BsonTimestamp lastUpdatedTimestamp;
+		Date currentDate = new Timestamp(currentTimeMillis);
+		Date lastUpdatedDate;
 		for(int i=0;i<listOfCitiesWithDetailsCities.size();i++) {
-			lastUpdatedTimestamp = listOfCitiesWithDetailsCities.get(i).getTime();
-			int timeDiff = currentTimestamp.getTime() - lastUpdatedTimestamp.getTime();
-			logger.info("timeDifferece between the current Time and last Updated time = " + timeDiff);
-			if(timeDiff >= 10) {
+			lastUpdatedDate = listOfCitiesWithDetailsCities.get(i).getDate();
+			long timeDiff = currentDate.getTime() - lastUpdatedDate.getTime();
+			if(TimeUnit.MILLISECONDS.toMinutes(timeDiff) > 10) {
 				City city2 = new City();
 				String cityName = listOfCitiesWithDetailsCities.get(i).getName();
 				BsonDocument updatedDocument = makeARestCallToOpenWeather(cityName);
 				city2.setName(cityName);
-				city2.setDes(updatedDocument.getArray("weather").get(0).asDocument().get("description").asString().toString());
-				city2.setTime(new BsonTimestamp(System.currentTimeMillis()));
-				city2.setIcon(updatedDocument.getArray("weather").get(0).asDocument().get("description").asString().toString());
-				city2.setTemp(updatedDocument.getDocument("main").asDocument().get("temp").asString().toString());
+				city2.setDes(updatedDocument.getArray("weather").get(0).asDocument().get("description").asString().getValue().toString());
+				city2.setDate(new Date(System.currentTimeMillis()));
+				city2.setIcon(updatedDocument.getArray("weather").get(0).asDocument().get("icon").asString().getValue().toString());
+				city2.setTemp(String.valueOf(updatedDocument.getDocument("main").asDocument().get("temp").asDouble().getValue()));
 				listOfCitiesWithDetailsCities.set(i, city2);
 			}
 		}
 		modelAndView.addObject("city", listOfCitiesWithDetailsCities);
 		modelAndView.setViewName("home.jsp");
+		logger.info("Model and view is set and being returned");
 		return modelAndView;
 	}
 	
